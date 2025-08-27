@@ -1,0 +1,241 @@
+{
+  "name": "ingest_raw_live_or_offline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "ManualTrigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "mode",
+              "value": "={{ $env.MODE || 'offline' }}"
+            },
+            {
+              "name": "searchUrl",
+              "value": "={{ $env.HARDVERAPRO_SEARCH_URL }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $env.SEARCH_QUERY || 'rtx 3080' }}"
+            },
+            {
+              "name": "rateMs",
+              "value": "={{ $env.RATE_LIMIT_MS || 500 }}"
+            }
+          ]
+        }
+      },
+      "id": "SetMode",
+      "name": "Set Mode",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        -100,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.mode}}",
+              "operation": "equals",
+              "value2": "live"
+            }
+          ]
+        }
+      },
+      "id": "IfLive",
+      "name": "IF live?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        120,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.searchUrl}}",
+        "options": {
+          "queryParametersUi": {
+            "parameter": [
+              {
+                "name": "q",
+                "value": "={{$json.query}}"
+              }
+            ]
+          },
+          "responseFormat": "string",
+          "timeout": 30
+        }
+      },
+      "id": "HttpSearch",
+      "name": "HTTP Request (Search HTML)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        350,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "filePath": "/project/sample_data.ndjson"
+      },
+      "id": "ReadSample",
+      "name": "Read sample_data.ndjson",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        350,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "options": {},
+        "binaryPropertyName": "data"
+      },
+      "id": "BinaryToText",
+      "name": "Binary \u2192 Text",
+      "type": "n8n-nodes-base.binaryToText",
+      "typeVersion": 1,
+      "position": [
+        560,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse NDJSON text from binary-to-text stage into items\nconst lines = ($json.data || '').split('\\n').filter(l => l.trim().length>0);\nreturn lines.map(l => ({ json: JSON.parse(l) }));\n"
+      },
+      "id": "ParseNDJSON",
+      "name": "Parse NDJSON",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        780,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "query": "INSERT INTO ingest_raw(source, payload) VALUES ($1, $2::jsonb);",
+        "values": "={{ [$json.source || ($json.mode || 'live'), JSON.stringify($json)] }}"
+      },
+      "id": "InsertIngest",
+      "name": "Postgres Insert ingest_raw",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        20
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "={{$env.PGDATABASE}}",
+          "name": "ENV_PG"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Mode": {
+      "main": [
+        [
+          {
+            "node": "IF live?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF live?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Search HTML)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read sample_data.ndjson",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read sample_data.ndjson": {
+      "main": [
+        [
+          {
+            "node": "Binary \u2192 Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Binary \u2192 Text": {
+      "main": [
+        [
+          {
+            "node": "Parse NDJSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse NDJSON": {
+      "main": [
+        [
+          {
+            "node": "Postgres Insert ingest_raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Search HTML)": {
+      "main": [
+        [
+          {
+            "node": "Postgres Insert ingest_raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

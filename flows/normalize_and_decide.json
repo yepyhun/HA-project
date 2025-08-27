@@ -1,0 +1,255 @@
+{
+  "name": "normalize_and_decide",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "Manual",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "query": "SELECT id, payload FROM ingest_raw ORDER BY id DESC LIMIT 10;"
+      },
+      "id": "SelectIngest",
+      "name": "Postgres Select ingest_raw",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        0
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "={{$env.PGDATABASE}}",
+          "name": "ENV_PG"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize raw payloads (JSON or HTML fallback into minimal fields)\nfunction parsePriceHuf(priceRaw){\n  if (!priceRaw) return null;\n  const s = priceRaw.toLowerCase().replace(/\\s+/g,' ').trim();\n  const digits = s.replace(/[^0-9]/g,'');\n  if (!digits) return null;\n  return parseInt(digits,10);\n}\nreturn items.map(it => {\n  const p = it.json.payload || {};\n  const url = p.url || 'unknown';\n  const title = p.title || (p.h1 || 'unknown');\n  const price_raw = p.price_raw || p.price || '';\n  const crypto = require('crypto');\n  const idempotency_key = crypto.createHash('sha256').update((url||'') + '|' + 'hardverapro').digest('hex').slice(0,32);\n  return {\n    json: {\n      listing_id: url,\n      idempotency_key,\n      title,\n      price_raw,\n      price_huf: parsePriceHuf(price_raw),\n      currency: (price_raw.toLowerCase().includes('ft') ? 'HUF' : null),\n      url,\n      extracted_at: new Date().toISOString()\n    }\n  }\n});\n"
+      },
+      "id": "Normalize",
+      "name": "Code: Normalize",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Embedded JSON-Schema-lite validator (required fields only)\nconst required = ['listing_id','idempotency_key','title','price_raw','url'];\nconst bad = [];\nconst good = [];\nfor (const it of items){\n  const j = it.json;\n  const miss = required.filter(k => j[k] === undefined || j[k] === null || String(j[k]).trim()==='');\n  if (miss.length){\n    bad.push({json:{...j, _schema_error:`Missing: ${miss.join(',')}`}});\n  } else {\n    good.push({json:j});\n  }\n}\n// Route: output 0 = valid, 1 = invalid (to audit)\nreturn [good, bad];\n"
+      },
+      "id": "Validate",
+      "name": "Code: Validate (JSON Schema-lite)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "query": "INSERT INTO listing_norm(listing_id,idempotency_key,title,price_raw,price_huf,currency,url,extracted_at)\nVALUES ($1,$2,$3,$4,$5,$6,$7,now())\nON CONFLICT (idempotency_key) DO UPDATE\n  SET title=excluded.title, price_raw=excluded.price_raw, price_huf=excluded.price_huf, currency=excluded.currency, url=excluded.url;",
+        "values": "={{ [$json.listing_id,$json.idempotency_key,$json.title,$json.price_raw,$json.price_huf,$json.currency,$json.url] }}"
+      },
+      "id": "UpsertNorm",
+      "name": "Postgres Upsert listing_norm",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        600,
+        -120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "={{$env.PGDATABASE}}",
+          "name": "ENV_PG"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Decide with budget-aware degradation\nconst budgetHuf = parseInt($env.LLM_BUDGET_HUF || '0',10);\nconst spent = 0; // PoC: stub; integrate real accounting if LLM used\nconst degrade = (budgetHuf > 0) && (spent >= budgetHuf);\nreturn items.map(it => {\n  const j = it.json;\n  let decision = 'ELUTASITVA';\n  if (degrade){\n    decision = 'ELUTASITVA (BUDGET LIMIT)';\n  } else {\n    // simple heuristic: cheap -> JO, else ELUTASITVA\n    decision = (j.price_huf && j.price_huf <= 220000) ? 'JO' : 'ELUTASITVA';\n  }\n  return { json: {\n    listing_id: j.listing_id, decision,\n    fit_score: 50, risk_score: 3,\n    explanation: degrade ? 'Budget limit reached' : 'Heuristic rule applied',\n    evidence: { price_huf: j.price_huf }\n  }};\n});\n"
+      },
+      "id": "Decide",
+      "name": "Code: Decide (with degrade)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        820,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "query": "INSERT INTO decision_audit(listing_id, decision, fit_score, risk_score, explanation, evidence)\nVALUES ($1,$2,$3,$4,$5,$6::jsonb);",
+        "values": "={{ [$json.listing_id, $json.decision, $json.fit_score, $json.risk_score, $json.explanation, JSON.stringify($json.evidence)] }}"
+      },
+      "id": "InsertAudit",
+      "name": "Postgres Insert decision_audit",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "={{$env.PGDATABASE}}",
+          "name": "ENV_PG"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "return items.map(it => ({ json: {\n  stage: 'normalize',\n  status: 'success',\n  items_count: items.length,\n  cost_estimate_huf: 0\n}}));\n"
+      },
+      "id": "Log",
+      "name": "Code: Log",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 2,
+      "position": [
+        1260,
+        -120
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "SchemaErrors",
+      "name": "(branch) Schema Errors",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        600,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "query": "INSERT INTO decision_audit(listing_id, decision, fit_score, risk_score, explanation, evidence)\nVALUES ($1,'SOFT FAIL',NULL,NULL,$2,$3::jsonb);",
+        "values": "={{ [$json.listing_id || 'N/A', $json._schema_error || 'Schema validation failed', JSON.stringify($json)] }}"
+      },
+      "id": "AuditSchemaFail",
+      "name": "Postgres Insert audit (schema fail)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        820,
+        120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "={{$env.PGDATABASE}}",
+          "name": "ENV_PG"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Postgres Select ingest_raw",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Select ingest_raw": {
+      "main": [
+        [
+          {
+            "node": "Code: Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Normalize": {
+      "main": [
+        [
+          {
+            "node": "Code: Validate (JSON Schema-lite)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Validate (JSON Schema-lite)": {
+      "main": [
+        [
+          {
+            "node": "Postgres Upsert listing_norm",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "(branch) Schema Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "(branch) Schema Errors": {
+      "main": [
+        [
+          {
+            "node": "Postgres Insert audit (schema fail)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Upsert listing_norm": {
+      "main": [
+        [
+          {
+            "node": "Code: Decide (with degrade)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code: Decide (with degrade)": {
+      "main": [
+        [
+          {
+            "node": "Postgres Insert decision_audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Insert decision_audit": {
+      "main": [
+        [
+          {
+            "node": "Code: Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
