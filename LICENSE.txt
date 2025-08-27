@@ -1,0 +1,49 @@
+Proprietary License — All Rights Reserved
+Copyright (c) 2025 yepyhun All rights reserved.
+
+HUNGARIAN / MAGYAR
+
+Ez a szoftver és a hozzá tartozó fájlok szerzői jogi védelem alatt állnak.
+A jogtulajdonos kifejezett, írásbeli engedélye nélkül TILOS:
+
+- a szoftvert bármilyen célra felhasználni vagy futtatni,
+- másolni, sokszorosítani, publikálni vagy terjeszteni,
+- módosítani, átdolgozni, más művekbe beépíteni vagy egyesíteni,
+- értékesíteni, bérbe adni, allicencelni vagy szolgáltatásként nyújtani,
+- visszafejteni, dekompilálni vagy szétszerelni (kivéve, ha ezt kötelező jogszabály kifejezetten megengedi).
+
+Bármilyen felhasználás kizárólag a jogtulajdonos előzetes, írásbeli engedélyével történhet.
+Engedélykérés: palyazatmenedzser.hu@gmail.com
+
+FELELŐSSÉGKIZÁRÁS
+A SZOFTVER „AHOGY VAN” ÁLLAPOTBAN KERÜL RENDELKEZÉSRE, KIFEJEZETT VAGY
+VÉLELMEZETT GARANCIA NÉLKÜL, IDEÉRTVE, DE NEM KIZÁRÓLAGOSAN A FORGALOMKÉPESSÉGRE,
+ADOTT CÉLRA VALÓ ALKALMASSÁGRA ÉS JOGSÉRTÉS-MENTESSÉGRE VONATKOZÓ GARANCIÁKAT.
+A JOGTULAJDONOS SEMMILYEN ESETBEN NEM FELEL SEMMILYEN KÁRÉRT VAGY KÖVETELÉSÉRT,
+AKÁR SZERZŐDÉS, JOGSÉRTÉS VAGY EGYÉB JOGCÍMEN MERÜL FEL, AMELY A SZOFTVERREL
+VAGY ANNAK HASZNÁLATÁVAL ÖSSZEFÜGG.
+
+––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+ENGLISH
+
+This software and its accompanying files are protected by copyright.
+Without the prior written permission of the copyright holder, it is PROHIBITED to:
+
+- use or run the software for any purpose,
+- copy, reproduce, publish, or distribute it,
+- modify, adapt, merge, or incorporate it into other works,
+- sell, rent, sublicense, or provide it as a service,
+- reverse engineer, decompile, or disassemble it (except to the extent
+  such activity is expressly permitted by mandatory law).
+
+Any use requires the copyright holder’s prior written permission.
+License inquiries: palyazatmenedzser.hu@gmail.com
+
+DISCLAIMER OF WARRANTY
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
